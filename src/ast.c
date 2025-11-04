@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-ASTNode *new_ast_node(NodeType type) {
+ASTNode *new_ast_node(NodeType type, TokenType op) {
     ASTNode *node = calloc(1, sizeof(ASTNode));
+    node->op = op;
     node->type = type;
     return node;
 }

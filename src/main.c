@@ -2,6 +2,7 @@
 #include "lists.h"
 #include "tokenize.h"
 #include "input.h"
+#include "parser.h"
 
 int main(){
 
@@ -18,6 +19,8 @@ int main(){
         }
 
         Token *tokens = tokenize(line); //	токенизация
+        ASTNode *root = parse(tokens);
+
         free(line);
 
         print_tokens(tokens);          //	вывод

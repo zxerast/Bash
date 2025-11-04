@@ -1,7 +1,8 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Iinc
+CFLAGS = -Wall -Wextra -Iinc -MMD -MP
 SRC = $(wildcard src/*.c)
 OBJ = $(SRC:src/%.c=obj/%.o)
+DEP = $(OBJ:%.o=%.d)
 NAME = bash
 
 all: $(NAME)
@@ -20,3 +21,5 @@ fclean: clean
 	rm -f $(NAME)
 
 re: fclean all
+
+-include $(DEP)

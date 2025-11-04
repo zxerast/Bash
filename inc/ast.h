@@ -1,5 +1,6 @@
 #ifndef AST_H
 #define AST_H
+#include "lists.h"
 
 typedef enum {
     NODE_COMMAND,
@@ -18,6 +19,7 @@ typedef struct Redirect {
 
 typedef struct ASTNode {
     NodeType type;
+    TokenType op;    
     struct ASTNode *left;
     struct ASTNode *right;
     char **argv;              // аргументы команды
@@ -25,7 +27,7 @@ typedef struct ASTNode {
 } ASTNode;
 
 // Функции создания и уничтожения узлов
-ASTNode *new_ast_node(NodeType type);
+ASTNode *new_ast_node(NodeType type, TokenType op);
 void free_ast(ASTNode *node);
 void print_ast(ASTNode *node, int depth);
 

@@ -220,6 +220,8 @@ Token *tokenize(char *line){
 	j = 0;
  }
  
+ append_token(&t, "", END);
+ 
  free(buf);
  return t;
 }
