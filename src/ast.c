@@ -28,11 +28,3 @@ void free_ast(ASTNode *node) {
     }
     free(node);
 }
-
-void print_ast(ASTNode *node, int depth) {
-    if (!node) return;
-    for (int i = 0; i < depth; i++) printf("  ");
-    printf("Node type: %d\n", node->type);
-    print_ast(node->left, depth + 1);
-    print_ast(node->right, depth + 1);
-}

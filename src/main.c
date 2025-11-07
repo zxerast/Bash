@@ -21,6 +21,8 @@ int main(){
         Token *tokens = tokenize(line); //	токенизация
         ASTNode *root = parse(tokens);
 
+        print_ast(root, 0);
+
         free(line);
 
         print_tokens(tokens);          //	вывод

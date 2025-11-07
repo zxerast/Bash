@@ -5,8 +5,7 @@
 typedef enum {
     NODE_COMMAND,
     NODE_PIPE,
-    NODE_AND,
-    NODE_OR,
+    NODE_AND_OR,
     NODE_SEQ,
     NODE_BACKGROUND
 } NodeType;
