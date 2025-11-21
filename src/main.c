@@ -5,11 +5,11 @@
 #include "parser.h"
 
 int main(){
+    using_history();
+    read_history(HISTORY_FILE);
 
     while (1) {
-        print_prompt();               //	вывод приглашения
-
-        char *line = read_line();     //	считываем строку с учётом кавычек
+        char *line = read_line(create_prompt());     //	считываем строку с учётом кавычек
         if (!line)                    //	ctrl+d
             break;
 
@@ -21,12 +21,14 @@ int main(){
         Token *tokens = tokenize(line); //	токенизация
         ASTNode *root = parse(tokens);
 
-        print_ast(root, 0);
 
         free(line);
 
-        print_tokens(tokens);          //	вывод
+        //print_tokens(tokens);          //	вывод
         free_tokens(tokens);         
     }
+
+    write_history(HISTORY_FILE);
+
     return 0;
 }

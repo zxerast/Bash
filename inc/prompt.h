@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <string.h>
 
-void print_prompt() {
+char *create_prompt() {
     char hostname[HOST_NAME_MAX + 1];   //  константы из limits.h
     char cwd[PATH_MAX + 1];
     struct passwd *pw;	//	структура хранящая имя пользоваттеля
@@ -28,7 +28,10 @@ void print_prompt() {
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
         strcpy(cwd, "?");	// текущая директория
     }
+    size_t size = strlen(username) + strlen(hostname) + strlen(cwd) + 4;
+    char *prompt = malloc(size);       // username@hostname:cwd$ + '\0'
 
-    printf("%s@%s:%s$ ", username, hostname, cwd);
-    fflush(stdout); 
+    sprintf(prompt, "%s@%s:%s$ ", username, hostname, cwd);
+
+    return prompt;
 }

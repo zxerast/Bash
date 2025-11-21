@@ -28,6 +28,5 @@ typedef struct ASTNode {
 // Функции создания и уничтожения узлов
 ASTNode *new_ast_node(NodeType type, TokenType op);
 void free_ast(ASTNode *node);
-void print_ast(ASTNode *node, int depth);
 
 #endif

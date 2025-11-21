@@ -18,7 +18,7 @@ void free_ast(ASTNode *node) {
             free(node->argv[i]);
         free(node->argv);
     }
-    // очистка перенаправлений
+    
     Redirect *r = node->redirects;
     while (r) {
         Redirect *next = r->next;
