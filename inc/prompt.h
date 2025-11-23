@@ -28,10 +28,10 @@ char *create_prompt() {
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
         strcpy(cwd, "?");	// текущая директория
     }
-    size_t size = strlen(username) + strlen(hostname) + strlen(cwd) + 4;
+    size_t size = strlen(username) + strlen(hostname) + strlen(cwd) + 34;
     char *prompt = malloc(size);       // username@hostname:cwd$ + '\0'
 
-    sprintf(prompt, "%s@%s:%s$ ", username, hostname, cwd);
+    sprintf(prompt, "\001\033[1;31m\002%s@%s\001\033[0m\002:\001\033[1;37m\002~%s\001\033[0m\002$ ", username, hostname, cwd);
 
     return prompt;
 }

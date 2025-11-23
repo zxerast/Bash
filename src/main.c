@@ -3,6 +3,7 @@
 #include "tokenize.h"
 #include "input.h"
 #include "parser.h"
+#include "executor.h"
 
 int main(){
     using_history();
@@ -20,7 +21,7 @@ int main(){
 
         Token *tokens = tokenize(line); //	токенизация
         ASTNode *root = parse(tokens);
-
+        execute(root);
 
         free(line);
 
