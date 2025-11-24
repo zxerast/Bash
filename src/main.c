@@ -21,7 +21,7 @@ int main(){
 
         Token *tokens = tokenize(line); //	токенизация
         ASTNode *root = parse(tokens);
-        execute(root);
+        execute(root, 0);
 
         free(line);
 

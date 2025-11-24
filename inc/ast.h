@@ -7,7 +7,6 @@ typedef enum {
     NODE_PIPE,
     NODE_AND_OR,
     NODE_SEQ,
-    NODE_BACKGROUND
 } NodeType;
 
 typedef struct Redirect {

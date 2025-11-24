@@ -1,12 +1,12 @@
 #include "executor.h"
 
-int execute(ASTNode *node) {
+int execute(ASTNode *node, int stage) {
     if (!node) return 0;
 
     switch (node->type) {
 
         case NODE_COMMAND:
-            return exec_command(node);
+            return exec_command(node, stage);
 
         case NODE_PIPE:
             return exec_pipe(node);
@@ -16,10 +16,8 @@ int execute(ASTNode *node) {
 
         case NODE_SEQ:
             return exec_seq(node);
-        
-        case NODE_BACKGROUND:
-            return exec_background(node);
     }
+    return 0;
 }
 
 int redirects(Redirect *r) {
@@ -78,8 +76,19 @@ int redirects(Redirect *r) {
 }
 
 
-int exec_command(ASTNode *node){
-	pid_t pid = fork();
+int exec_command(ASTNode *node, int is_fork){
+	
+    if(is_fork == 1){
+        if (redirects(node->redirects) < 0){
+            exit(1);	
+        }
+    
+        execvp(node->argv[0], node->argv);
+		perror("execvp");
+		exit(1);
+    }
+
+    pid_t pid = fork();
 	
 	if(pid < 0){
 		perror ("fork");
@@ -122,14 +131,19 @@ int exec_pipe(ASTNode *node){
     if (left_pid == 0) {
         dup2(pipefd[1], STDOUT_FILENO);
 
+        if (node->op == PIPE_AND) {
+            dup2(pipefd[1], STDERR_FILENO);
+        }
+
         close(pipefd[0]);
         close(pipefd[1]);
 
-        int status = execute(node->left);
+        int status = execute(node->left, 1);
         exit(status);
     }
 
     pid_t right_pid = fork();
+    
     if (right_pid < 0) {
         perror("fork");
         return 1;
@@ -141,7 +155,7 @@ int exec_pipe(ASTNode *node){
         close(pipefd[0]);
         close(pipefd[1]);
 
-        int status = execute(node->right);
+        int status = execute(node->right, 1);
         exit(status);
     }
 
@@ -156,15 +170,45 @@ int exec_pipe(ASTNode *node){
 }
 
 int exec_and_or(ASTNode *node){
-    return;
+    int status = execute(node->left, 0);
+
+    if (node->op == AND_IF) {     // &&
+        if (status == 0)          // success
+            return execute(node->right, 0);
+        else
+            return status;        // skip right
+    }
+
+    if (node->op == OR_IF) {      // ||
+        if (status != 0)          // fail
+            return execute(node->right, 0);
+        else
+            return status;        // skip right
+    }
+
+    return status;
 }
 
 int exec_seq(ASTNode *node){
-    return;
-}
+    if(node->op == SEPARATOR){
+        execute(node->left, 0);
+        return execute(node->right, 0);
+    }
 
-int exec_background(ASTNode *node){
-    return;
+    if(node->op == BACKGROUND){
+        pid_t pid = fork();
+
+        if(pid < 0) {
+            perror("fork");
+            return 1;
+        }
+        
+        if(pid == 0){
+            exit(execute(node->left, 1));
+        }
+        return execute(node->right, 0);
+    }
+    return 0;
 }
 
 int exitstatus(int status){
