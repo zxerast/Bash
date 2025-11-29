@@ -22,6 +22,7 @@ typedef struct ASTNode {
     struct ASTNode *right;
     char **argv;              // аргументы команды
     Redirect *redirects;      // перенаправления
+    int background;         // запущена ли команда в фоне
 } ASTNode;
 
 // Функции создания и уничтожения узлов

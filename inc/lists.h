@@ -25,6 +25,7 @@ typedef struct Token {
     char *value;          // сам текст токена
     TokenType type;
     struct Token *next;   // ссылка на следующий
+    struct Token *prev;   // ссылка на следующий
 } Token;
 
 Token *new_token(const char *text, TokenType type);

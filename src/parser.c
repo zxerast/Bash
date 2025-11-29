@@ -13,7 +13,9 @@ ASTNode *parse_sequence(Token *head){
     }
     ASTNode *node = new_ast_node(NODE_SEQ, head->type);
     head->type = END;
+    node->background = 1;
     node->left = parse_and_or(tmp);
+    node->left->background = 1;
     node->right = parse(head->next);
     return node;
 }

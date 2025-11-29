@@ -1,12 +1,22 @@
 #include "executor.h"
+#include "builtins.h"
+#include "job_control.h"
 
-int execute(ASTNode *node, int stage) {
+extern char *full_command;
+
+int execute(ASTNode *node) {
+
+    
     if (!node) return 0;
+
+    if (node->left) node->left->background = node->background;
+
+    if (node->right) node->right->background = node->background;
 
     switch (node->type) {
 
         case NODE_COMMAND:
-            return exec_command(node, stage);
+            return exec_command(node);
 
         case NODE_PIPE:
             return exec_pipe(node);
@@ -58,7 +68,7 @@ int redirects(Redirect *r) {
             case REDIRECT_ERR:
                 file = open(r->filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
                 if (file < 0) { 
-                    perror("open 2>"); 
+                    perror("open &>"); 
                     return -1; 
                 }
                 dup2(file, STDERR_FILENO);
@@ -76,26 +86,30 @@ int redirects(Redirect *r) {
 }
 
 
-int exec_command(ASTNode *node, int is_fork){
-	
-    if(is_fork == 1){
-        if (redirects(node->redirects) < 0){
-            exit(1);	
-        }
+int exec_command(ASTNode *node){
     
-        execvp(node->argv[0], node->argv);
-		perror("execvp");
-		exit(1);
+    int cmd = builtin(node);
+    
+    if(cmd == 0){   // встроенная команда выполнена в родительском процессе
+        return cmd;
     }
 
+
     pid_t pid = fork();
-	
+	job_add(&jobs, job_create(full_command, pid, 1));
+
 	if(pid < 0){
 		perror ("fork");
 		return 1;
 	} 
-	
+
     if(pid == 0){
+        setpgid(0, 0);
+        signal(SIGINT, SIG_DFL);    // В дочернем процессе восстанавливаем сигналы по умолчанию
+        signal(SIGTSTP, SIG_DFL);
+
+        tcsetpgrp(STDIN_FILENO, getpid());  // Передаем управление терминалом дочернему процессу
+
         if (redirects(node->redirects) < 0){
             exit(1);	
         }
@@ -105,83 +119,152 @@ int exec_command(ASTNode *node, int is_fork){
 		exit(1);
 	}	
 
-    int status;
-    waitpid(pid, &status, 0);
+    setpgid(pid, pid); // Устанавливаем группу процессов для дочернего процесса
 
-    return exitstatus(status);
+    signal(SIGINT, SIG_IGN);    // В родительском процессе игнорируем сигналы
+    signal(SIGTSTP, SIG_IGN);
+
+    int status;
+    waitpid(pid, &status, WUNTRACED);
+
+    if (WIFSTOPPED(status)){
+        tcsetpgrp(STDIN_FILENO, getpid());  // Возвращаем управление терминалом родительскому процессу
+        jobs.tail->stopped = 1;
+        printf("\n[%d] Stopped         %s", jobs.tail->id, jobs.tail->cmd);
+        return 0;
+    }
+    
+
+    tcsetpgrp(STDIN_FILENO, getpid());  // Возвращаем управление терминалом родительскому процессу
+
+    if (WIFSIGNALED(status)) {
+        return 128 + WTERMSIG(status);
+    }
+
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+
+    return 1;
+}
+
+// Собираем команды пайпа в массив
+int create_pipeline(ASTNode *node, ASTNode **arr) {
+    int n = 0;
+
+    while (node->type == NODE_PIPE) {
+        arr[n++] = node->left;
+        node = node->right;
+    }
+
+    arr[n++] = node;
+    return n;
 }
 
 
 
 int exec_pipe(ASTNode *node){
+    ASTNode *cmds[128];
+    int n = create_pipeline(node, cmds);  // получаем список команд
+
     int pipefd[2];
-   
-    if (pipe(pipefd) == -1) {
-        perror("pipe");
-        return 1;
-    }
+    int prev_fd = -1;
 
-    pid_t left_pid = fork();
+    pid_t pgid = 0;
+	job_add(&jobs, job_create(full_command, pgid, 1));
 
-    if (left_pid < 0) {
-        perror("fork");
-        return 1;
-    }
-
-    if (left_pid == 0) {
-        dup2(pipefd[1], STDOUT_FILENO);
-
-        if (node->op == PIPE_AND) {
-            dup2(pipefd[1], STDERR_FILENO);
+    for (int i = 0; i < n; i++) {
+        if (i < n - 1) {
+            if (pipe(pipefd) < 0) {
+                perror("pipe");
+                exit(1);
+            }
         }
 
-        close(pipefd[0]);
-        close(pipefd[1]);
+        pid_t pid = fork();
 
-        int status = execute(node->left, 1);
-        exit(status);
+        if (pid < 0) {
+            perror("fork");
+            exit(1);
+        }
+
+        if (pid == 0) {
+            // --- CHILD ---
+            if (pgid == 0)
+                pgid = getpid();          // первая команда становится лидером
+            setpgid(0, pgid);
+
+            signal(SIGINT, SIG_DFL);
+            signal(SIGTSTP, SIG_DFL);
+
+            if (prev_fd != -1) {
+                dup2(prev_fd, STDIN_FILENO);
+            }
+
+            if (i < n - 1) {
+                dup2(pipefd[1], STDOUT_FILENO);
+            }
+
+            if (prev_fd != -1) close(prev_fd);
+            if (i < n - 1) {
+                close(pipefd[0]);
+                close(pipefd[1]);
+            }
+
+            execvp(cmds[i]->argv[0], cmds[i]->argv);
+            perror("execvp");
+            exit(1);
+        }
+
+        // --- PARENT ---
+        if (pgid == 0) pgid = pid;
+        setpgid(pid, pgid);
+
+        if (prev_fd != -1)
+            close(prev_fd);
+
+        if (i < n - 1) {
+            close(pipefd[1]);
+            prev_fd = pipefd[0];
+        }
     }
 
-    pid_t right_pid = fork();
-    
-    if (right_pid < 0) {
-        perror("fork");
-        return 1;
+
+    tcsetpgrp(STDIN_FILENO, pgid);
+
+    // --- ЖДЁМ ВСЮ ГРУППУ ---
+    while (1) {
+        int status;
+        pid_t w = waitpid(-pgid, &status, WUNTRACED);
+
+        if (w == -1) break;
+
+        if (WIFSTOPPED(status)) {
+            tcsetpgrp(STDIN_FILENO, getpid());
+            return 0;
+        }
+
+        if (WIFEXITED(status) || WIFSIGNALED(status)) {
+        }
     }
 
-    if (right_pid == 0) {
-        dup2(pipefd[0], STDIN_FILENO);
-
-        close(pipefd[0]);
-        close(pipefd[1]);
-
-        int status = execute(node->right, 1);
-        exit(status);
-    }
-
-    close(pipefd[0]);
-    close(pipefd[1]);
-
-    int status_left, status_right;
-    waitpid(left_pid, &status_left, 0);
-    waitpid(right_pid, &status_right, 0);
-
-    return exitstatus(status_right);
+    tcsetpgrp(STDIN_FILENO, getpid());
+    return 0;
 }
 
 int exec_and_or(ASTNode *node){
-    int status = execute(node->left, 0);
+    int status = execute(node->left);
 
     if (node->op == AND_IF) {     // &&
         if (status == 0)          // success
-            return execute(node->right, 0);
+            return execute(node->right);
         else
             return status;        // skip right
     }
 
     if (node->op == OR_IF) {      // ||
         if (status != 0)          // fail
-            return execute(node->right, 0);
+            return execute(node->right);
         else
             return status;        // skip right
     }
@@ -191,30 +274,16 @@ int exec_and_or(ASTNode *node){
 
 int exec_seq(ASTNode *node){
     if(node->op == SEPARATOR){
-        execute(node->left, 0);
-        return execute(node->right, 0);
+        execute(node->left);
+        return execute(node->right);
     }
 
     if(node->op == BACKGROUND){
-        pid_t pid = fork();
-
-        if(pid < 0) {
-            perror("fork");
-            return 1;
-        }
-        
-        if(pid == 0){
-            exit(execute(node->left, 1));
-        }
-        return execute(node->right, 0);
+        node->left->background = 1;
+        execute(node->left);
+        return execute(node->right);
     }
     return 0;
 }
 
-int exitstatus(int status){
-    if (WIFEXITED(status))
-        return WEXITSTATUS(status);
-    else
-        return 1;
-}
 

@@ -6,6 +6,8 @@
 
 #define HISTORY_FILE ".my_shell_history"
 
+char *full_command = NULL;
+
 char *read_line(char *prompt) {
     int open_quote = 0;
     int open_squote = 0;
@@ -62,6 +64,13 @@ char *read_line(char *prompt) {
 
         fprintf(stderr, "> "); // продолжаем ввод
     }
+    
+    if (full_command) {
+        free(full_command);
+    }   
+    
+    full_command = malloc(strlen(full_line) + 1);
+    strcpy(full_command, full_line);
 
     free(line);
     return full_line;
