@@ -2,14 +2,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-ASTNode *new_ast_node(NodeType type, TokenType op) {
+ASTNode *new_ast_node(NodeType type, TokenType op) {    // Создание нового узла дерева
     ASTNode *node = calloc(1, sizeof(ASTNode));
     node->op = op;
     node->type = type;
     return node;
 }
 
-void free_ast(ASTNode *node) {
+void free_ast(ASTNode *node) {  // Освобождение дерева
     if (!node) return;
     free_ast(node->left);
     free_ast(node->right);

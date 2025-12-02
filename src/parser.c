@@ -2,25 +2,23 @@
 
 ASTNode *parse(Token *head)
 {
-    return parse_sequence(head);   // ;
+    return parse_sequence(head);  
 }
 
-ASTNode *parse_sequence(Token *head){
+ASTNode *parse_sequence(Token *head){   // по приоритету начинаем вызов с самого низкого
     Token *tmp = head;
-    while (head->type != BACKGROUND && head->type != SEPARATOR){
-        if(head->type == END) return parse_and_or(tmp);
-        head = head->next;
+    while (head->type != BACKGROUND && head->type != SEPARATOR){    // пока не встретили ; или &
+        if(head->type == END) return parse_and_or(tmp); // если не нашли, то парсим дальше по приоритету
+        head = head->next;  // идём дальше по списку токенов
     }
-    ASTNode *node = new_ast_node(NODE_SEQ, head->type);
-    head->type = END;
-    node->background = 1;
-    node->left = parse_and_or(tmp);
-    node->left->background = 1;
-    node->right = parse(head->next);
+    ASTNode *node = new_ast_node(NODE_SEQ, head->type); // создаём новый узел если нашли ; или &
+    head->type = END;   // разделяем список токенов на две части END токеном в месте разделителя
+    node->left = parse_and_or(tmp); // парсим в левой части следующую по приоритету часть
+    node->right = parse(head->next); // в правой части дальше ищем возможный текущий приоритет
     return node;
 }
 
-ASTNode *parse_and_or(Token *head){
+ASTNode *parse_and_or(Token *head){       // Далее точно такая же логика, только для следующих приоритетов
     Token *tmp = head;
     while (head->type != AND_IF && head->type != OR_IF){
         if(head->type == END) return parse_pipeline(tmp);
@@ -47,8 +45,8 @@ ASTNode *parse_pipeline(Token *head){
 }
 
 ASTNode *parse_command(Token *head){
-    ASTNode *node = new_ast_node(NODE_COMMAND, head->type);
-    node->left = NULL;
+    ASTNode *node = new_ast_node(NODE_COMMAND, head->type); 
+    node->left = NULL;  // команды не имеют потомков как самый верхний приоритет
     node->right = NULL;
     node->argv = NULL;
     node->redirects = NULL;
@@ -56,13 +54,13 @@ ASTNode *parse_command(Token *head){
     size_t argc = 0;
     Token *tmp = head;
 
-    while (tmp->type != END) {  //  Создаём массив из слов которые будут образовывать команду
+    while (tmp->type != END) {  // создаём массив из слов которые будут образовывать команду
         switch (tmp->type) {
             case WORD:
             case STRING: {
                 node->argv = realloc(node->argv, sizeof(char *) * (argc + 2));
                 node->argv[argc] = strdup(tmp->value);
-                argc++;
+                argc++;                    // слово или строка добавляются в аргументы команды
                 node->argv[argc] = NULL; 
                 break;
             }
@@ -72,21 +70,21 @@ ASTNode *parse_command(Token *head){
             case REDIRECT_APPEND:
             case REDIRECT_ERR:
             case REDIRECT_FAR: {
-                if (!tmp->next || tmp->next->type != WORD) {
+                if (!tmp->next || tmp->next->type != WORD) {    // после перенаправления должно идти имя файла
                     fprintf(stderr, "Syntax error: expected filename after redirection\n");
                     free_ast(node);
                     return NULL;
                 }
 
-                Redirect *r = malloc(sizeof(Redirect));
-                r->type = tmp->type;
-                r->filename = strdup(tmp->next->value);
+                Redirect *r = malloc(sizeof(Redirect)); // создаём структуру перенаправления в виде списка
+                r->type = tmp->type;    
+                r->filename = strdup(tmp->next->value); 
                 r->next = NULL;
 
-                if (!node->redirects) node->redirects = r;  
+                if (!node->redirects) node->redirects = r;  // добавляем в конец списка перенаправлений
                 else {
                     Redirect *tmp = node->redirects;
-                    while (tmp->next) tmp = tmp->next;
+                    while (tmp->next) tmp = tmp->next;  // иначе идём до конца списка и потом добавляем
                     tmp->next = r;
                 }
 
@@ -103,9 +101,8 @@ ASTNode *parse_command(Token *head){
         tmp = tmp->next;
     }
 
-    // если нет аргументов — синтаксическая ошибка
     if (!node->argv || !node->argv[0]) {
-        free_ast(node);
+        free_ast(node);     // нет аргументов - нет и команды
         return NULL;
     }
     return node;

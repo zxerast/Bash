@@ -114,38 +114,24 @@ Token *tokenize(char *line){
 		continue;	
 	}
 
+ 	if(line[i] == '\\'){
+ 		if(i + 1 < len){
+ 			buf[j++] = line[i + 1]; // экранирование
+			i += 2;
+			continue;
+ 		}
+		else{
+ 			buf[j++] = line[i++]; // экранирование
+			continue;
+		}	
+ 	}
+
  	if(line[i] == '"'){
  		append(&t, buf, j, WORD);
 		j = 0;
 		i++;
  		while(line[i] != '"'){
- 			/*if(i >= len){
- 				fprintf(stderr, "> ");	// Если не встретили закрывающую кавычку
-				buf[j] = '\0';
-				char *arr = NULL;
-    			size_t ln = 0;
-    			ssize_t nread = getline(&arr, &ln, stdin);
-
-				if (nread == -1) { // EOF или ошибка
-					free(arr);
-					free(buf);
-					free_tokens(t);
-					return NULL;
-				}
-
-				line = realloc(line, strlen(arr) + len + 1);
-				strcat(line, arr);
-				len += strlen(arr); 
-				continue;
-			}*/
-
  			if(line[i] == '\\'){
- 				/*if(line[i + 1] == '\n'){
- 					fprintf(stderr, "Invalid escape sequence\n");	//	Если \ - последний символ, то есть ничего не экранирует
- 					free(buf);
-					free_tokens(t);
-					return NULL;
-				}*/
  				if(i + 1 < len){
  					buf[j++] = line[++i]; // экранирование
  					i++;
@@ -166,28 +152,6 @@ Token *tokenize(char *line){
 		j = 0;
 		i++;
  		while(line[i] != '\''){
- 			/*if(i >= len){
- 				fprintf(stderr, "> ");	// Если не встретили закрывающую кавычку
-				buf[j] = '\0';
-				char *arr = NULL;
-    			size_t ln = 0;
-    			ssize_t nread = getline(&arr, &ln, stdin);
-
-				if (nread == -1) { // EOF или ошибка
-					free(arr);
-					free(buf);
-					free_tokens(t);
-					return NULL;
-				}
-
-				line = realloc(line, strlen(arr) + len + 1);
-				buf = realloc(buf, strlen(arr) + len + 1);
-				strcat(line, arr);
-				len += strlen(arr); 
-				free(arr);
-				continue;
-			}*/
-
  			buf[j++] = line[i++];	//	Записываем символы в кавычках как они есть, не пропуская пробелы
  		}
  		i++;
@@ -196,20 +160,6 @@ Token *tokenize(char *line){
  		continue;	
  	}	
 
- 	if(line[i] == '\\'){
- 		/*if(line[i + 1] == '\n'){
-			fprintf(stderr, "Invalid escape sequence\n");	//	Если \ - последний символ, то есть ничего не экранирует
- 			free(buf);
-			free_tokens(t);
-			return NULL;
-				
- 		}*/
- 		if(i + 1 < len){
- 			buf[j++] = line[++i]; // экранирование
-   			i++;
-   			continue;
- 		}	
- 	}
 
  	if (i >= len) break;	// Вышли за пределы строки
  	buf[j++] = line[i++];	//	Записываем символы в буфер(слово)

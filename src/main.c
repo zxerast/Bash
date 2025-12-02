@@ -6,6 +6,7 @@
 #include "executor.h"
 #include "job_control.h"
 
+extern JobList jobs;
 
 int main(){
 // идентификатор shell'а
@@ -19,7 +20,7 @@ int main(){
     signal(SIGTTIN, SIG_IGN);
     signal(SIGTSTP, SIG_IGN);
     signal(SIGINT, SIG_IGN);
-    signal(SIGCHLD, SIG_IGN);
+    signal(SIGCHLD, SIG_DFL);
 
     int can_exit = 0;
 
@@ -27,11 +28,15 @@ int main(){
     read_history(HISTORY_FILE);
           
     while (1) {
-        char *line = read_line(create_prompt());     //	считываем строку с учётом кавычек
+        reap_background_jobs();   // проверяем фоновые задания
+        char *prompt = create_prompt();       
+        char *line = read_line(prompt);     //	считываем строку с учётом кавычек
+        free(prompt);
+
         if (!line){                    //	ctrl+d
-            if (jobs.count > 0 && !can_exit){
+            if (jobs.count > 0 && !can_exit){   // есть остановленные задания
                 can_exit = 1;
-                printf("exit\nThere are stopped jobs\n");
+                printf("exit\nThere are stopped jobs\n");   // предупреждение
                 continue;
             }
             break;

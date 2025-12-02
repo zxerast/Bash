@@ -2,14 +2,14 @@
 #define AST_H
 #include "lists.h"
 
-typedef enum {
+typedef enum {  //  типы узлов AST
     NODE_COMMAND,
     NODE_PIPE,
     NODE_AND_OR,
     NODE_SEQ,
 } NodeType;
 
-typedef struct Redirect {
+typedef struct Redirect {   // структура перенаправлений в виде списка
     int type;                 // тип из TokenType
     char *filename;
     struct Redirect *next;
@@ -17,7 +17,7 @@ typedef struct Redirect {
 
 typedef struct ASTNode {
     NodeType type;
-    TokenType op;    
+    TokenType op;    // оператор (для PIPE, AND_IF, OR_IF, SEPARATOR)
     struct ASTNode *left;
     struct ASTNode *right;
     char **argv;              // аргументы команды
@@ -25,7 +25,6 @@ typedef struct ASTNode {
     int background;         // запущена ли команда в фоне
 } ASTNode;
 
-// Функции создания и уничтожения узлов
 ASTNode *new_ast_node(NodeType type, TokenType op);
 void free_ast(ASTNode *node);
 

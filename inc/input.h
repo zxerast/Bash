@@ -35,9 +35,11 @@ char *read_line(char *prompt) {
         } 
 
         for (ssize_t i = 0; i < nread; i++){
-            if (line[i] == '\\' && open_quote) {                
-                i++; // пропускаем экранированный символ
-                continue;
+            if (line[i] == '\\') {       
+                if(i + 1 < nread){         
+                    i++; // пропускаем экранированный символ
+                    continue;
+                }
             }
          
             if (line[i] == '"' && !open_squote){
