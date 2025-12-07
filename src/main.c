@@ -21,6 +21,8 @@ int main(){
     signal(SIGTSTP, SIG_IGN);
     signal(SIGINT, SIG_IGN);
     signal(SIGCHLD, SIG_DFL);
+    signal(SIGQUIT, SIG_IGN);
+    signal(SIGTERM, SIG_IGN);
 
     int can_exit = 0;
 

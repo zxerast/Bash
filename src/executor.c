@@ -1,11 +1,18 @@
 #include "executor.h"
 #include "builtins.h"
 #include "job_control.h"
+#include "variables.h"
 
-extern char *full_command;  // Наша полная команда
+extern char *full_command;  // наша полная команда
 
 int execute(ASTNode *node) {
-
+    
+    for (int i = 0; node->argv[i] != NULL; i++) {
+        char *old = node->argv[i];
+        node->argv[i] = expand_var(old);
+        free(old);
+    }
+    
     if (!node) return 0;
 
     switch (node->type) {   // в зависимости от типа узла вызываем соответствующую функцию которая рекурсивно обрабатывает дерево
@@ -97,7 +104,9 @@ int exec_command(ASTNode *node) {
 
         if (redirects(node->redirects) < 0) {   // выполняем редиректы
             res = 1;
-        } else {
+        } 
+        
+        else {
             res = builtin(node);    // выполняем встроенную команду
         }
 
@@ -111,6 +120,8 @@ int exec_command(ASTNode *node) {
 
         return res;
     }
+
+    
 
     pid_t pid = fork(); // если команда не встроенная — создаём для неё дочерний процесс
     
@@ -126,8 +137,13 @@ int exec_command(ASTNode *node) {
 
     if(pid == 0){
         setpgid(0, 0);
-        signal(SIGINT, SIG_DFL);    // в дочернем процессе восстанавливаем сигналы по умолчанию
+        signal(SIGTTOU, SIG_DFL);
+        signal(SIGTTIN, SIG_DFL);
         signal(SIGTSTP, SIG_DFL);
+        signal(SIGINT, SIG_DFL);
+        signal(SIGCHLD, SIG_DFL);
+        signal(SIGQUIT, SIG_DFL);
+        signal(SIGTERM, SIG_DFL);
 
         if(node->background != 1){  // если мы не в фоне
             tcsetpgrp(STDIN_FILENO, getpid());  // то передаем управление терминалом дочернему процессу
@@ -143,9 +159,7 @@ int exec_command(ASTNode *node) {
 	}	
 
     setpgid(pid, pid); // в родителе устанавливаем группу процессов для дочернего процесса
- 
-    signal(SIGINT, SIG_IGN);    // а также игнорируем сигналы
-    signal(SIGTSTP, SIG_IGN);
+    tcsetpgrp(STDIN_FILENO, pid);
 
     if(node->background == 0){
         int status;
@@ -166,11 +180,11 @@ int exec_command(ASTNode *node) {
         tcsetpgrp(STDIN_FILENO, getpid());  // возвращаем терминал если дождались
 
         if (WIFSIGNALED(status)) {
-            return 128 + WTERMSIG(status);  // завершение по сигналу, возвращаем код + 128, как в bash
+            return 128 + WTERMSIG(status);  // завершение по сигналу, возвращаем код результата + 128, как в bash
         }
 
         if (WIFEXITED(status)) {
-            return WEXITSTATUS(status); // если нормальное завершение, также возвращаем код
+            return WEXITSTATUS(status); // если нормальное завершение, также возвращаем код выхода
         }
 
     }
@@ -275,8 +289,13 @@ int exec_pipe(ASTNode *node){
                 pgid = getpid();          // первая команда пайплайна становится лидером
             setpgid(0, pgid);
 
-            signal(SIGINT, SIG_DFL);
+            signal(SIGTTOU, SIG_DFL);
+            signal(SIGTTIN, SIG_DFL);
             signal(SIGTSTP, SIG_DFL);
+            signal(SIGINT, SIG_DFL);
+            signal(SIGCHLD, SIG_DFL);
+            signal(SIGQUIT, SIG_DFL);
+            signal(SIGTERM, SIG_DFL);
 
             if (prev_fd != -1) {    // если это не первый процесс, перенаправляем ввод
                 dup2(prev_fd, STDIN_FILENO);
@@ -339,35 +358,54 @@ int exec_pipe(ASTNode *node){
         return 0;
     }
 
-    while (job->proc_count > 0) {   // пока есть хоть один живой процесс в job-е
+    while (1) {   // пока есть хоть один живой процесс в job-е
         int status;
         pid_t w = waitpid(-pgid, &status, WUNTRACED); // ждём
 
         if (w == -1) break; // не дождались(
 
         if (WIFSTOPPED(status)) {   // встали
-            job->stopped = 1;
-            free(cmds);
-            free(op);
-            free(tmp);
-            tcsetpgrp(STDIN_FILENO, getpid());
-            printf("\n[%d] Stopped         %s", jobs.tail->id, jobs.tail->cmd);
-            return 0;
+            for (int i = 0; i < job->proc_count; i++) {
+                if (job->procs[i].pid == w) {
+                    job->procs[i].stopped = 1;
+                    break;
+                }
+            }
         }
 
         if (WIFEXITED(status) || WIFSIGNALED(status)) { // завершились либо сдохли
-            job->proc_count--;
+            for (int i = 0; i < job->proc_count; i++) {
+                if (job->procs[i].pid == w) {
+                    job->procs[i].finished = 1;
+                    break;
+                }
+            }
+        }
+
+        if (all_procs_stopped(job)) {
+            job->stopped = 1;
+
+            free(cmds);
+            free(op);
+            free(tmp);
+
+            tcsetpgrp(STDIN_FILENO, getpid());
+            printf("\n[%d] Stopped         %s\n", job->id, job->cmd);
+            return 0;
+        }
+        
+        if (all_procs_finished(job)) {
+            job->exited = 1;
+
+            free(cmds);
+            free(op);
+            free(tmp);
+
+            tcsetpgrp(STDIN_FILENO, getpid());
+            job_remove(&jobs, jobs.tail);   // удаляем job
+            return 0;
         }
     }
-
-    tcsetpgrp(STDIN_FILENO, getpid());
-    
-    job_remove(&jobs, jobs.tail);   // удаляем job
-
-    free(cmds);
-    free(op);
-    free(tmp);
-    
     return 0;
 }
 

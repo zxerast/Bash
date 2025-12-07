@@ -93,7 +93,7 @@ ASTNode *parse_command(Token *head){
             }
 
             default:
-                fprintf(stderr, "Syntax error near token type %d\n", tmp->type);
+                fprintf(stderr, "Syntax error %d \n", tmp->type);
                 free_ast(node);
                 return NULL;
         }

@@ -43,7 +43,7 @@ void job_add_proc(Job *j, int index, pid_t pid) { // добавление про
     j->procs[index].pid = pid;
     j->procs[index].stopped = 0;
     j->procs[index].status = 0;
-    j->procs[index].finished = -1;
+    j->procs[index].finished = 0;
 }
 
 
@@ -76,6 +76,22 @@ Job *find_job(JobList *list, int id) {  // поиск job по id
     return NULL;
 }
 
+int all_procs_stopped(Job *job) {
+    for (int i = 0; i < job->proc_count; i++) {
+        if (!job->procs[i].stopped)
+            return 0;
+    }
+    return 1;
+}
+
+int all_procs_finished(Job *job) {
+    for (int i = 0; i < job->proc_count; i++) {
+        if (!job->procs[i].finished)
+            return 0;
+    }
+    return 1;
+}
+
 int reap_background_jobs() {    // убираем завершившиеся фоновые job'ы
     int status;
     pid_t pid;
@@ -88,15 +104,27 @@ int reap_background_jobs() {    // убираем завершившиеся ф�
                     j->procs[i].status = status;
                     j->procs[i].finished = 1;
 
-                    if (WIFSTOPPED(status)) {
-                        j->procs[i].stopped = 1;       // обновляем флаги в зависимости от статуса
-                        j->stopped = 1;
-                    }
-
                     if (WIFEXITED(status) || WIFSIGNALED(status)) {
+                        j->procs[i].finished = 1;
                         j->procs[i].stopped = 0;
                     }
 
+
+                    else if (WIFSTOPPED(status)) {
+                        j->procs[i].stopped = 1;       // обновляем флаги в зависимости от статуса
+                        j->procs[i].finished = 0;
+                    
+                        int all_stopped = 1;
+                        for (int k = 0; k < j->proc_count; k++) {
+                            if (!j->procs[k].stopped && !j->procs[k].finished) {
+                                all_stopped = 0;
+                                break;
+                            }
+                        }
+                        
+                        if (all_stopped)
+                            j->stopped = 1;
+                    }
                     break;
                 }
             }

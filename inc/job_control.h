@@ -23,6 +23,7 @@ typedef struct job {
 
     int   stopped;         // флаги состояния job'а
     int   running;         
+    int   exited;         
     int   background;      
 
     struct job *prev;      
@@ -43,3 +44,5 @@ void job_remove(JobList *list, Job *j);
 void job_add_proc(Job *j, int index, pid_t pid);
 Job *find_job(JobList *list, int id);
 int reap_background_jobs();
+int all_procs_finished(Job *job);
+int all_procs_stopped(Job *job);

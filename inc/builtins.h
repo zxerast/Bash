@@ -9,7 +9,7 @@ typedef enum {
     NONE = 0, CD, EXIT,
     PWD, ECHO, HELP,
     HISTORY, JOBS, FG,
-    BG, KILL
+    BG, KILL, EXPORT
 } Builtin;
 
 Builtin is_builtin(ASTNode *node);
@@ -24,4 +24,5 @@ int builtin_jobs(JobList *jobs);
 int builtin_bg(char **argv);
 int builtin_fg(char **argv);
 int builtin_kill(char **argv);
+int builtin_export(char **argv);
 int str2sig(const char *name);

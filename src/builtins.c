@@ -3,6 +3,7 @@
 #include "executor.h"
 #include "job_control.h"
 #include <ctype.h>
+#include "variables.h"
 
 #define HISTORY_FILE ".my_shell_history"    // файл истории
 
@@ -24,6 +25,7 @@ Builtin is_builtin(ASTNode *node) {
     if (strcmp(s, "fg") == 0) return FG;
     if (strcmp(s, "bg") == 0) return BG;
     if (strcmp(s, "kill") == 0) return KILL;
+    if (strcmp(s, "export") == 0) return EXPORT;
 
     return NONE;
 }
@@ -43,6 +45,7 @@ int builtin(ASTNode *node){
         case FG: return builtin_fg(node->argv);
         case BG: return builtin_bg(node->argv);
         case KILL: return builtin_kill(node->argv);
+        case EXPORT: return builtin_export(node->argv);
         default: return 1;
     }
 }
@@ -90,6 +93,8 @@ int builtin_echo(char **argv){
     printf("\n");
     return 0;
 }
+
+
 int builtin_help(){ // просто выводим текст
     printf("Supported built-in commands:\n");
     printf("cd [dir]    - Change the current directory to 'dir'. If 'dir' is not provided, changes to HOME.\n");
@@ -119,7 +124,20 @@ int builtin_history(){
 int builtin_jobs(JobList *jobs){
     Job *j = jobs->head;
     while (j != NULL) {
-        printf("[%d] %s\n", j->id, j->cmd); // пока список не пуст — выводим все job'ы
+        char *stat;
+        if (j->stopped == 1){
+            stat = "Stopped";
+        }
+
+        else if (j->running == 1){
+            stat = "Running";
+        }
+
+        else if (j->exited == 1){
+            stat = "Finished";
+        }
+        
+        printf("[%d] %s %s\n", j->id, j->cmd, stat); // пока список не пуст — выводим все job'ы
         j = j->next;
     }
     return 0;
@@ -185,18 +203,36 @@ int builtin_fg(char **argv) {
     int status;
 
     while (1) {
-        pid_t w = waitpid(-j->pgid, &status, WUNTRACED);    // ждем изменения состояния процессов в job-е
+        pid_t w = waitpid(-j->pgid, &status, WUNTRACED); // ждём
 
-        if (w == -1) break;
+        if (w == -1) break; // не дождались(
 
-        if (WIFSTOPPED(status)) {       // встали
-            tcsetpgrp(STDIN_FILENO, getpid());
-            j->stopped = 1;
-            printf("\n[%d] Stopped         %s\n", j->id, j->cmd);
-            return 0;
+        if (WIFSTOPPED(status)) {   // встали
+            for (int i = 0; i < j->proc_count; i++) {
+                if (j->procs[i].pid == w) {
+                    j->procs[i].stopped = 1;
+                    break;
+                }
+            }
         }
 
         if (WIFEXITED(status) || WIFSIGNALED(status)) { // завершились либо сдохли
+            for (int i = 0; i < j->proc_count; i++) {
+                if (j->procs[i].pid == w) {
+                    j->procs[i].finished = 1;
+                    break;
+                }
+            }
+        }
+
+        if (all_procs_stopped(j)) {
+            j->stopped = 1;
+            printf("\n[%d] Stopped         %s\n", j->id, j->cmd);
+            break;
+        }
+
+        if (all_procs_finished(j)) {
+            j->exited = 1;
             job_remove(&jobs, j);
             break;
         }
