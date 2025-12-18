@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include "builtins.h"
 #include "ast.h"
 #include "executor.h"
@@ -164,9 +166,6 @@ int builtin_bg(char **argv) {
         return 1;
     }
 
-    j->stopped = 0;
-    j->running = 1;
-
     printf("[%d] %s &\n", j->id, j->cmd);   // выводим сообщение о возобновлении в фоне
     return 0;
 }
@@ -203,7 +202,7 @@ int builtin_fg(char **argv) {
     int status;
 
     while (1) {
-        pid_t w = waitpid(-j->pgid, &status, WUNTRACED); // ждём
+        pid_t w = waitpid(-j->pgid, &status, WUNTRACED | WCONTINUED); // ждём
 
         if (w == -1) break; // не дождались(
 
@@ -211,6 +210,15 @@ int builtin_fg(char **argv) {
             for (int i = 0; i < j->proc_count; i++) {
                 if (j->procs[i].pid == w) {
                     j->procs[i].stopped = 1;
+                    break;
+                }
+            }
+        }
+
+        if (WIFCONTINUED(status)) {
+            for (int i = 0; i < j->proc_count; i++) {
+                if (j->procs[i].pid == w) {
+                    j->procs[i].stopped = 0;
                     break;
                 }
             }
@@ -227,7 +235,7 @@ int builtin_fg(char **argv) {
 
         if (all_procs_stopped(j)) {
             j->stopped = 1;
-            printf("\n[%d] Stopped         %s\n", j->id, j->cmd);
+            printf("\n[%d] Stopped         %s", j->id, j->cmd);
             break;
         }
 

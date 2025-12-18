@@ -96,35 +96,54 @@ int reap_background_jobs() {    // убираем завершившиеся ф�
     int status;
     pid_t pid;
 
-    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) { // сначала обновляем статусы процессов
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED)) > 0) { // сначала обновляем статусы процессов
         Job *j = jobs.head;
         while (j != NULL) {
             for (int i = 0; i < j->proc_count; i++) {   // смотрим все процессы во всех job'ах
                 if (j->procs[i].pid == pid) {
                     j->procs[i].status = status;
-                    j->procs[i].finished = 1;
 
                     if (WIFEXITED(status) || WIFSIGNALED(status)) {
                         j->procs[i].finished = 1;
                         j->procs[i].stopped = 0;
                     }
 
-
                     else if (WIFSTOPPED(status)) {
                         j->procs[i].stopped = 1;       // обновляем флаги в зависимости от статуса
                         j->procs[i].finished = 0;
-                    
-                        int all_stopped = 1;
-                        for (int k = 0; k < j->proc_count; k++) {
-                            if (!j->procs[k].stopped && !j->procs[k].finished) {
-                                all_stopped = 0;
-                                break;
-                            }
-                        }
-                        
-                        if (all_stopped)
-                            j->stopped = 1;
                     }
+
+                    else if (WIFCONTINUED(status)) {
+                        j->procs[i].stopped = 0;       // обновляем флаги в зависимости от статуса
+                    }
+
+                    int all_finished = 1;
+                    int all_stopped  = 1;
+
+                    for (int k = 0; k < j->proc_count; k++) {
+
+                        if (!j->procs[k].finished)
+                            all_finished = 0;
+
+                        if (!j->procs[k].stopped)
+                            all_stopped = 0;
+                    }
+
+                    if (all_finished) {
+                        j->exited = 1;
+                        j->stopped  = 0;
+                    }
+
+                    else if (all_stopped) {
+                        j->stopped = 1;
+                    }
+
+                    else {
+                        j->stopped  = 0;
+                        j->exited = 0;
+                    }
+
+
                     break;
                 }
             }

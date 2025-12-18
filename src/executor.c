@@ -5,19 +5,17 @@
 
 extern char *full_command;  // наша полная команда
 
-int execute(ASTNode *node) {
-    
-    for (int i = 0; node->argv[i] != NULL; i++) {
-        char *old = node->argv[i];
-        node->argv[i] = expand_var(old);
-        free(old);
-    }
-    
+int execute(ASTNode *node) {    
     if (!node) return 0;
 
     switch (node->type) {   // в зависимости от типа узла вызываем соответствующую функцию которая рекурсивно обрабатывает дерево
 
         case NODE_COMMAND:
+            for (int i = 0; node->argv[i] != NULL; i++) {
+                char *old = node->argv[i];
+                node->argv[i] = expand_var(old);
+                free(old);
+            }
             return exec_command(node);  // выполнение простой команды
 
         case NODE_PIPE:
@@ -345,17 +343,16 @@ int exec_pipe(ASTNode *node){
             prev_fd = pipefd[0];
         }
 
-        job_add_proc(jobs.tail, i, pid);    // добавляем новосозданный процесс в job
+        job_add_proc(job, i, pid);    // добавляем новосозданный процесс в job
 
     }
 
-
-    tcsetpgrp(STDIN_FILENO, pgid);  // после создания всех процессов передаем терминал группе процессов
-
     if (node->background == 1) {    // не ждём в фоне
         printf("[%d] %d\n", job->id, pgid);
-        tcsetpgrp(STDIN_FILENO, getpid());
         return 0;
+    }
+    else{
+        tcsetpgrp(STDIN_FILENO, pgid);  // после создания всех процессов передаем терминал группе процессов
     }
 
     while (1) {   // пока есть хоть один живой процесс в job-е
@@ -365,18 +362,18 @@ int exec_pipe(ASTNode *node){
         if (w == -1) break; // не дождались(
 
         if (WIFSTOPPED(status)) {   // встали
-            for (int i = 0; i < job->proc_count; i++) {
+            for (int i = 0; i < job->proc_count; i++) { // смотрим, кто же встал
                 if (job->procs[i].pid == w) {
-                    job->procs[i].stopped = 1;
+                    job->procs[i].stopped = 1;  // и у того меняем флаг остановки
                     break;
                 }
             }
         }
 
         if (WIFEXITED(status) || WIFSIGNALED(status)) { // завершились либо сдохли
-            for (int i = 0; i < job->proc_count; i++) {
+            for (int i = 0; i < job->proc_count; i++) { //  также ищем виновника торжества 
                 if (job->procs[i].pid == w) {
-                    job->procs[i].finished = 1;
+                    job->procs[i].finished = 1; //  и ему клеймо мертвеца 
                     break;
                 }
             }
@@ -402,7 +399,7 @@ int exec_pipe(ASTNode *node){
             free(tmp);
 
             tcsetpgrp(STDIN_FILENO, getpid());
-            job_remove(&jobs, jobs.tail);   // удаляем job
+            job_remove(&jobs, job);   // удаляем job
             return 0;
         }
     }
