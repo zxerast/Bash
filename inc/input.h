@@ -8,10 +8,36 @@
 
 char *full_command = NULL;
 
+static int end_operator(const char *s) {
+    int i = strlen(s) - 1;
+
+    // пропускаем пробелы
+    while (i >= 0 && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n'))
+        i--;
+
+    if (i < 0)
+        return 0;
+
+    // &&
+    if (i >= 1 && s[i] == '&' && s[i-1] == '&')
+        return 1;
+
+    // ||
+    if (i >= 1 && s[i] == '|' && s[i-1] == '|')
+        return 1;
+
+    // |
+    if (s[i] == '|')
+        return 1;
+
+    return 0;
+}
+
 char *read_line(char *prompt) {
     int open_quote = 0;
     int open_squote = 0;
     int last_slash = 0;
+    int last_operand = 0;
     char *line = NULL;      // начальный буфер
     ssize_t nread = 0;
     char *full_line = NULL; // накопленная строка
@@ -56,10 +82,13 @@ char *read_line(char *prompt) {
         full_line[old_len + nread] = last_slash ? '\0' : '\n';
         full_line[old_len + nread + 1] = '\0';
 
-        if (!open_quote && !open_squote && !last_slash){
+        last_operand = end_operator(full_line);
+
+        if (!open_quote && !open_squote && !last_slash && !last_operand){
             last_slash = 0;
+            last_operand = 0;
             if (nread > 0 && line[0] != '\0') {
-                add_history(line); // add to history
+                add_history(full_line); // add to history
             }
             break; // если кавычки закрылись — выходим
         }
