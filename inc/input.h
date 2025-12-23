@@ -79,8 +79,7 @@ char *read_line(char *prompt) {
         size_t old_len = full_line ? strlen(full_line) : 0;	// если старая строка пустая, то берём за старый размер 0 иначе размер строки
         full_line = realloc(full_line, old_len + nread + 2);	
         memcpy(full_line + old_len, line, nread + 1);		// переносим
-        full_line[old_len + nread] = last_slash ? '\0' : '\n';
-        full_line[old_len + nread + 1] = '\0';
+        full_line[old_len + nread] = '\0';
 
         last_operand = end_operator(full_line);
 

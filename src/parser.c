@@ -2,12 +2,7 @@
 
 ASTNode *parse(Token *head)
 {
-    ASTNode *pars = parse_sequence(head);
-    if(pars != NULL){
-        return parse_sequence(head);  
-    }
-    printf("Expected command before pipe\n");
-    return NULL;
+    return parse_sequence(head);  
 }
 
 ASTNode *parse_sequence(Token *head){   // по приоритету начинаем вызов с самого низкого
@@ -42,12 +37,14 @@ ASTNode *parse_pipeline(Token *head){
         if(head->type == END) return parse_command(tmp);
         head = head->next;
     }
+    if (tmp == head) {
+        printf("Syntax error: expected command before '|'\n");
+        return NULL;
+    }
     ASTNode *node = new_ast_node(NODE_PIPE, head->type);
     head->type = END;
     node->left = parse_command(tmp);
-    if (!node->left) return NULL;
     node->right = parse(head->next);
-    if (!node->right) return NULL;
     return node;
 }
 
