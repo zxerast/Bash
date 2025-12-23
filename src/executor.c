@@ -143,10 +143,6 @@ int exec_command(ASTNode *node) {
         signal(SIGQUIT, SIG_DFL);
         signal(SIGTERM, SIG_DFL);
 
-        if(node->background != 1){  // если мы не в фоне
-            tcsetpgrp(STDIN_FILENO, getpid());  // то передаем управление терминалом дочернему процессу
-        }
-
         if (redirects(node->redirects) < 0){    // перенаправления
             exit(1);	
         }
@@ -157,14 +153,20 @@ int exec_command(ASTNode *node) {
 	}	
 
     setpgid(pid, pid); // в родителе устанавливаем группу процессов для дочернего процесса
-    tcsetpgrp(STDIN_FILENO, pid);
+    if (node->background == 0) {
+        if (tcsetpgrp(STDIN_FILENO, pid) < 0) { // передаём терминал только foreground группе
+            perror("tcsetpgrp");
+        }
+    }
 
     if(node->background == 0){
         int status;
         waitpid(pid, &status, WUNTRACED);   // ждем завершения или остановки если это не фон
 
         if (WIFSTOPPED(status)){    // остановка по ctrl+z(SIGTSTP)
-            tcsetpgrp(STDIN_FILENO, getpid());  // возвращаем управление терминалом родительскому процессу
+            if (tcsetpgrp(STDIN_FILENO, getpid()) < 0) {  // возвращаем управление терминалом родительскому процессу
+                perror("tcsetpgrp");
+            }
             Job *job = job_create(full_command, pid, 1);
             job_add_proc(job, 0, pid);       
             job->stopped = 1;                   // создаём job, добавляем процессы, ставим флаги
@@ -175,7 +177,9 @@ int exec_command(ASTNode *node) {
         }
         
 
-        tcsetpgrp(STDIN_FILENO, getpid());  // возвращаем терминал если дождались
+        if (tcsetpgrp(STDIN_FILENO, getpid()) < 0) {  // возвращаем терминал если дождались
+            perror("tcsetpgrp");
+        }
 
         if (WIFSIGNALED(status)) {
             return 128 + WTERMSIG(status);  // завершение по сигналу, возвращаем код результата + 128, как в bash
@@ -191,7 +195,9 @@ int exec_command(ASTNode *node) {
         job_add_proc(job, 0, pid);
 	    job_add(&jobs, job);
         printf("[%d] %d\n", job->id, pid);  // без ожидания, просто сообщение о том что он есть
-        tcsetpgrp(STDIN_FILENO, getpid());  // передача терминала
+        if (tcsetpgrp(STDIN_FILENO, getpid()) < 0) {  // передача терминала
+            perror("tcsetpgrp");
+        }
         return 0;
     }
     return 0;
@@ -446,5 +452,4 @@ int exec_seq(ASTNode *node){
     }
     return 0;
 }
-
 

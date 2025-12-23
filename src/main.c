@@ -12,8 +12,12 @@ int main(){
 // идентификатор shell'а
     pid_t shell_pid = getpid();
 
-    setpgid(shell_pid, shell_pid);      // сделать шелл лидером своей группы
-    tcsetpgrp(STDIN_FILENO, shell_pid); // передать терминал шеллу
+    if (setpgid(shell_pid, shell_pid) < 0) {  // сделать шелл лидером своей группы
+        perror("setpgid");
+    }
+    if (tcsetpgrp(STDIN_FILENO, shell_pid) < 0) { // передать терминал шеллу
+        perror("tcsetpgrp");
+    }
 
 // игнорировать SIGTTIN и SIGTTOU, чтобы шелл не стопился
     signal(SIGTTOU, SIG_IGN);

@@ -1,0 +1,53 @@
+ertj     wert
+                    
+d           d
+ls
+ls -l
+     ls      -l   
+ls-l
+ls|
+clear
+ls|ls
+ls||ls
+ls&&ls
+ls;ls
+
+echo hello | cat
+ls /etc | grep '^p' | head -3
+seq 1 5 | awk '{print \$1*2}'
+echo -e 'a\nb\na\nc' | sort | uniq
+ps aux | wc -l
+cat /etc/passwd | cut -d: -f1 | sort | head -5
+
+
+echo -e "apple\nbanana\ncherry\napple\ndate\nbanana" > fruits.txt
+cat fruits.txt | sort | uniq | wc -l
+ls /usr/bin | grep '^[a-c]' | wc -l
+ls /usr/bin | grep '^[a-c]' | wc -l
+ps aux | grep 'sshd' | awk '{print \$2}' | head -5  
+ps aux | grep 'sshd'  | head -5
+echo 'Hello World TEST' | tr '[:upper:]' '[:lower:]' | sed 's/test/check/'
+echo '2*3' | bc
+
+cat fruits.txt > step1.txt
+sort step1.txt > step2.txt
+uniq step2.txt > step3.txt
+wc -l step3.txt
+rm -f step1.txt step2.txt step3.txt
+
+cat fruits.txt | tee pipe_step1.txt | sort | tee pipe_step2.txt | uniq | tee pipe_step3.txt | wc -l
+
+echo "Process $$ started, reading from stdin" >&2
+
+# Создаем замедленную команду
+cat > slow_cat.sh << 'EOF'
+#!/bin/bash
+while read line; do
+    echo "Processing: $line" >&2
+    echo "$line"
+    sleep 0.1
+done
+EOF
+chmod +x slow_cat.sh
+
+printf 'line1\nline2\nline3\n' | ./slow_cat.sh | grep 'line'
